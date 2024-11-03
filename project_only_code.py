@@ -5,6 +5,8 @@ import os
 import matplotlib.pyplot as plt
 import math
 import matplotlib.animation as animation
+import nibabel
+import nibabel.processing
 # image
 # Image = sitk.ReadImage("test.nii.gz")
 # sitk.Show(Image)
@@ -12,9 +14,14 @@ import matplotlib.animation as animation
 # voxel_volume = space[0]*space[1]*space[2]
 
 # img1 = sitk.ReadImage("Temporal 75 Cal Score .625 DLIR SSF - 306.nii.gz")
-img1 = sitk.ReadImage('../CAC_cases_2500_vs_625_group1_originals/ID27649_CAC/img-nii/Temporal 75 Cal Score .625 DLIR SSF - 306.nii.gz')
+input_image_path = r'C:\Users\Chandan\Downloads\CAC_cases_2500_vs_625_group1_originals\CAC_cases_2500_vs_625_group1_originals\ID27649_CAC\img-nii\Temporal75CalScore.625DLIRSSF-306.nii.gz'
+input_mask_path = r"C:\Users\Chandan\Downloads\CAC_cases_2500_vs_625_group1_originals\CAC_cases_2500_vs_625_group1_originals\ID27649_CAC\img-nii\Segmentation-Temporal75-label.nii.gz"
+img1 = sitk.ReadImage(input_image_path)
 img2 = sitk.GetImageFromArray(sitk.GetArrayViewFromImage(img1)[0,:,:,:])
-mask1 = sitk.ReadImage("../CAC_cases_2500_vs_625_group1_originals/ID27649_CAC/img-nii/Segmentation-Temporal75-label.nii.gz")
+mask1 = sitk.ReadImage(input_mask_path)
+intermediate_blur_img_path = r'C:\Users\Chandan\Downloads\intr_blur.nii.gz'
+intermediate_downsample_img_path = r'C:\Users\Chandan\Downloads\intr_down_blur.nii.gz'
+intermediate_downsample_mask_path = r'C:\Users\Chandan\Downloads\Segmentation-649_Temporal_Seg_Downsample_2_2_2-label_new.nii.gz'
 space = img1.GetSpacing()
 voxel_volume = space[0]*space[1]*space[2]
 
@@ -27,6 +34,26 @@ blur_image = gaussian.Execute(img2)
 caster = sitk.CastImageFilter()
 caster.SetOutputPixelType(pixelID)
 blur_image = caster.Execute(blur_image)
+sitk.WriteImage(blur_image, intermediate_blur_img_path)
+
+#Downsampling
+downsample = 1
+downsample_dim = [2,2,2]
+
+if (downsample):
+    input_img = nibabel.load(intermediate_blur_img_path)
+    input_img_mask = nibabel.load(input_mask_path)
+    resampled_img = nibabel.processing.resample_to_output(input_img, downsample_dim)
+    resampled_mask = nibabel.processing.resample_to_output(input_img_mask, downsample_dim)
+    nibabel.save(resampled_img, intermediate_downsample_img_path)
+    #nibabel.save(resampled_mask, intermediate_downsample_mask_path)
+    blur_image = sitk.ReadImage(intermediate_downsample_img_path)
+    mask1 = sitk.ReadImage(intermediate_downsample_mask_path)
+    
+    print(blur_image.GetSpacing())
+    print(mask1.GetSpacing())
+    
+
 # sitk.GetImageFromArray(sitk.GetArrayViewFromImage(img1)[0,:,:,:])
 image_array = sitk.GetArrayViewFromImage(blur_image)
 mask_array = sitk.GetArrayFromImage(mask1)
@@ -88,8 +115,8 @@ def make_movie(heart_array, filename):
     # Display the animation
     plt.show()
 
-make_movie(cropped_array, "heart_original_ID27649_temporal")
-calcium_mask =heart_array[heart_array > 130]
+#make_movie(cropped_array, "heart_original_ID27649_temporal")
+calcium_mask =cropped_array[cropped_array > 130]
 # plt.imshow(calcium_mask[55], cmap='gray')
 # plt.show()
 # Image.GetSpacing()[1]
@@ -158,7 +185,7 @@ def calculate_agatston_score_aorta(ct_scan, voxel_volume, calcium_mask_location=
 ag_score , volume, calcium_image = calculate_agatston_score_aorta(cropped_array, voxel_volume, calcium_mask_location='calcium_mask_image_2')
 
 print(ag_score , volume)
-make_movie(calcium_image, "calcium_mask_image_ID27649")
+#make_movie(calcium_image, "calcium_mask_image_ID27649")
 
 # Plotting a basic histogram
 # plt.hist(calcium_image.flat, color='skyblue', edgecolor='black')
@@ -210,3 +237,17 @@ plt.xlabel("Intensity in HU (Hounsfield Unit)")
 plt.ylabel("Frequency")
 plt.title("Histogram of Intensities class 3 (400HU and above)")
 plt.show()
+#Counting lesions based on Agatston bins
+lesion_count = {}
+
+thresh = [130, 200, 300, 400, 99999999]
+for i in range(0, len(thresh)-1):
+    crp_image = sitk.GetImageFromArray(cropped_array)
+    thresholded_image = sitk.BinaryThreshold(crp_image, lowerThreshold=thresh[i], upperThreshold=thresh[i+1], insideValue=1, outsideValue=0)
+    connected_components = sitk.ConnectedComponent(thresholded_image)
+    label_image = sitk.RelabelComponent(connected_components)
+    num_components = sitk.GetArrayFromImage(label_image).max()
+    lesion_count[str(thresh[i]) + '_to_' + str(thresh[i+1]) ] = num_components
+    
+
+print(lesion_count)
