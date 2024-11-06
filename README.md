@@ -8,6 +8,6 @@ We use the code here to calculate various parameters that affect the calculation
 
 ##How to use the code:
 ------------------------
-The code requires the use of a private dataset shared by Dr Elliot McVeigh from UCSD
-The segmentation files were generated using Slicer3D
-Several functions have been placed inside the Jupyter Notebook provided which is used to generate the variables
+1. The code requires the use of a private dataset shared by Dr Elliot McVeigh from UCSD
+2. The segmentation files were generated using Slicer3D
+3. Several functions have been placed inside the Jupyter Notebook provided which is used to generate the variables
