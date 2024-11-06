@@ -1,1 +1,1 @@
-# ECE207A_CT_project
+# BENG280A/ECE207A_CT_project
