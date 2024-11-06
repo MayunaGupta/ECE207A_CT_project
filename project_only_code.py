@@ -7,63 +7,77 @@ import math
 import matplotlib.animation as animation
 import nibabel
 import nibabel.processing
+import glob
 # image
 # Image = sitk.ReadImage("test.nii.gz")
 # sitk.Show(Image)
 # space = Image.GetSpacing()
 # voxel_volume = space[0]*space[1]*space[2]
 
-# img1 = sitk.ReadImage("Temporal 75 Cal Score .625 DLIR SSF - 306.nii.gz")
-input_image_path = r'C:\Users\Chandan\Downloads\CAC_cases_2500_vs_625_group1_originals\CAC_cases_2500_vs_625_group1_originals\ID27649_CAC\img-nii\Temporal75CalScore.625DLIRSSF-306.nii.gz'
-input_mask_path = r"C:\Users\Chandan\Downloads\CAC_cases_2500_vs_625_group1_originals\CAC_cases_2500_vs_625_group1_originals\ID27649_CAC\img-nii\Segmentation-Temporal75-label.nii.gz"
+''' Reading folder structure to automate and create outputs'''
+
+input_image_path = r'C:\Users\Chandan\Downloads\CAC_cases_2500_vs_625_group1_originals\CAC_cases_2500_vs_625_group1_originals\ID27649_CAC\img-nii\Cal Score bone .625 - 304.nii.gz'
+input_mask_path = r'C:\Users\Chandan\Downloads\CAC_cases_2500_vs_625_group1_originals\CAC_cases_2500_vs_625_group1_originals\ID27649_CAC\img-nii\Segmentation-Cal_Score_Bone-label.nii.gz'
 img1 = sitk.ReadImage(input_image_path)
-img2 = sitk.GetImageFromArray(sitk.GetArrayViewFromImage(img1)[0,:,:,:])
 mask1 = sitk.ReadImage(input_mask_path)
-intermediate_blur_img_path = r'C:\Users\Chandan\Downloads\intr_blur.nii.gz'
-intermediate_downsample_img_path = r'C:\Users\Chandan\Downloads\intr_down_blur.nii.gz'
-intermediate_downsample_mask_path = r'C:\Users\Chandan\Downloads\Segmentation-649_Temporal_Seg_Downsample_2_2_2-label_new.nii.gz'
+intr_blur_img_path = r'C:\Users\Chandan\Downloads\intr_blur.nii.gz'
+intr_dw_img_path = r'C:\Users\Chandan\Downloads\intr_down_blur.nii.gz'
+intr_dw_mask_path = r'C:\Users\Chandan\Downloads\intr_dw_mask.nii.gz'
+
+intr_dw_mask_path_1 = r'C:\Users\Chandan\Downloads\intr_dw_inpmask.nii.gz'
+
 space = img1.GetSpacing()
 voxel_volume = space[0]*space[1]*space[2]
-
 pixelID = img1.GetPixelID()
 
 gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
-gaussian.SetSigma(2)
-blur_image = gaussian.Execute(img2)
+gaussian.SetSigma(0.8)
+blur_image = gaussian.Execute(img1)
 
 caster = sitk.CastImageFilter()
 caster.SetOutputPixelType(pixelID)
 blur_image = caster.Execute(blur_image)
-sitk.WriteImage(blur_image, intermediate_blur_img_path)
+sitk.WriteImage(blur_image, intr_blur_img_path)
 
 #Downsampling
 downsample = 1
 downsample_dim = [2,2,2]
 
 if (downsample):
-    input_img = nibabel.load(intermediate_blur_img_path)
+    input_img = nibabel.load(intr_blur_img_path)
     input_img_mask = nibabel.load(input_mask_path)
     resampled_img = nibabel.processing.resample_to_output(input_img, downsample_dim)
     resampled_mask = nibabel.processing.resample_to_output(input_img_mask, downsample_dim)
-    nibabel.save(resampled_img, intermediate_downsample_img_path)
-    #nibabel.save(resampled_mask, intermediate_downsample_mask_path)
-    blur_image = sitk.ReadImage(intermediate_downsample_img_path)
-    mask1 = sitk.ReadImage(intermediate_downsample_mask_path)
+    nibabel.save(resampled_img, intr_dw_img_path)
+    nibabel.save(resampled_mask, intr_dw_mask_path)
+    nibabel.save(input_img_mask, intr_dw_mask_path_1)
+    blur_image = sitk.ReadImage(intr_dw_img_path)
+    mask1 = sitk.ReadImage(intr_dw_mask_path)
     
     print(blur_image.GetSpacing())
     print(mask1.GetSpacing())
-    
+
 
 # sitk.GetImageFromArray(sitk.GetArrayViewFromImage(img1)[0,:,:,:])
 image_array = sitk.GetArrayViewFromImage(blur_image)
 mask_array = sitk.GetArrayFromImage(mask1)
+
 cropped_array = image_array * mask_array
 # Display the image using Matplotlib
-plt.imshow(cropped_array[120,:,:], cmap="gray")
+plt.imshow(cropped_array[80,:,:], cmap="gray")
 plt.show()  
+
+# signal = np.mean(cropped_array)
+signal = np.mean(cropped_array[cropped_array>0])
+
+noise = np.std(cropped_array[cropped_array>0])
+snr = signal / noise
+print(signal, noise, snr)
+
+
 # # Display the image using Matplotlib
 # plt.imshow(mask_array[40,130:450,20:450], cmap="gray")
-# plt.show()  
+# plt.show()
 # def dist(l1, l2,):
 #     return [np.sqrt((l1[0]-l2[0])**2) , np.sqrt((l1[1]-l2[1])**2) , np.sqrt((l1[2]-l2[2])**2 )]
 
@@ -110,7 +124,7 @@ def make_movie(heart_array, filename):
     ani = animation.ArtistAnimation(fig, ims, interval=50, blit=True, repeat_delay=1000)
 
     # Save the animation as a video file (e.g., MP4)
-    ani.save(f'{filename}.mp4', writer='ffmpeg')
+    ani.save(f'{filename}.mp4')
 
     # Display the animation
     plt.show()
@@ -185,6 +199,41 @@ def calculate_agatston_score_aorta(ct_scan, voxel_volume, calcium_mask_location=
 ag_score , volume, calcium_image = calculate_agatston_score_aorta(cropped_array, voxel_volume, calcium_mask_location='calcium_mask_image_2')
 
 print(ag_score , volume)
+
+from PIL import Image
+
+def display_sitk_image_as_movie(image_array, name_img, duration=100):
+    """
+    Displays a 3D SimpleITK image as a movie using Pillow by iterating through each slice.
+
+    Parameters:
+        sitk_image (sitk.Image): The 3D SimpleITK image to display.
+        duration (int): Duration to show each frame in milliseconds (default: 100ms).
+    """
+    # Convert SITK image to a NumPy array
+    #image_array = sitk.GetArrayFromImage(sitk_image)  # Shape: (depth, height, width)
+
+    # Create list to store frames
+    frames = []
+
+    # Convert each slice to a PIL Image and add to frames
+    for i in range(image_array.shape[0]):
+        slice_array = image_array[i, :, :]  # Extract each 2D slice
+        normalized_slice = np.uint8(255 * (slice_array - np.min(slice_array)) / (np.ptp(slice_array)))  # Normalize
+        frame = Image.fromarray(normalized_slice)
+        frames.append(frame)
+
+    # Display as animated movie
+    frames[0].show()  # Show the first frame to initiate
+    frames[0].save(name_img + "_movie.gif", save_all=True, append_images=frames[1:], duration=duration, loop=0)
+
+    print("Movie saved as '3D_image_movie_0.2Gaussian.gif'")
+
+# Usage example
+
+display_sitk_image_as_movie(calcium_image, 'calcium_image', duration=50)
+blur_image_1 = sitk.GetArrayFromImage(blur_image)
+display_sitk_image_as_movie(blur_image_1, 'ct_image', duration=50)
 #make_movie(calcium_image, "calcium_mask_image_ID27649")
 
 # Plotting a basic histogram
@@ -200,6 +249,20 @@ flattened_array = calcium_image_array.flatten()
 flattened_array.mean()
 flattened_array.max()
 
+#Counting lesions based on Agatston bins
+lesion_count = {}
+
+thresh = [130, 99999999]
+for i in range(0, len(thresh)-1):
+    crp_image = sitk.GetImageFromArray(cropped_array)
+    thresholded_image = sitk.BinaryThreshold(crp_image, lowerThreshold=thresh[i], upperThreshold=thresh[i+1], insideValue=1, outsideValue=0)
+    connected_components = sitk.ConnectedComponent(thresholded_image)
+    label_image = sitk.RelabelComponent(connected_components)
+    num_components = sitk.GetArrayFromImage(label_image).max()
+    lesion_count[str(thresh[i]) + '_to_' + str(thresh[i+1]) ] = num_components
+    
+
+print(lesion_count)
 # Plot the histogram
 # plt.figsize(16,16)
 plt.figure(figsize=(16,16))
@@ -236,18 +299,5 @@ plt.hist(flattened_array[(flattened_array>400)], bins=100)
 plt.xlabel("Intensity in HU (Hounsfield Unit)")
 plt.ylabel("Frequency")
 plt.title("Histogram of Intensities class 3 (400HU and above)")
+plt.savefig('histogram.png')
 plt.show()
-#Counting lesions based on Agatston bins
-lesion_count = {}
-
-thresh = [130, 200, 300, 400, 99999999]
-for i in range(0, len(thresh)-1):
-    crp_image = sitk.GetImageFromArray(cropped_array)
-    thresholded_image = sitk.BinaryThreshold(crp_image, lowerThreshold=thresh[i], upperThreshold=thresh[i+1], insideValue=1, outsideValue=0)
-    connected_components = sitk.ConnectedComponent(thresholded_image)
-    label_image = sitk.RelabelComponent(connected_components)
-    num_components = sitk.GetArrayFromImage(label_image).max()
-    lesion_count[str(thresh[i]) + '_to_' + str(thresh[i+1]) ] = num_components
-    
-
-print(lesion_count)
